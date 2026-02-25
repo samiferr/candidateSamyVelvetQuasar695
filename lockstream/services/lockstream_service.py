@@ -23,8 +23,8 @@ from lockstream.schemas.models import CompartmentStatus, Event, LockerSummary, R
 
 
 def _default_event_log_path() -> Path:
-    # lockstream/services/ -> lockstream/
-    return Path(__file__).resolve().parents[1] / "event_log.jsonl"
+    from lockstream.infrastructure.config import  settings
+    return settings.event_log_path
 
 
 def _to_core_event(body: Event) -> CoreEvent:
@@ -69,7 +69,8 @@ def _to_core_event(body: Event) -> CoreEvent:
 
 def get_compartment_status_service(locker_id: str, compartment_id: str, db: Session) -> CompartmentStatus:
     locker_repo = LockerRepositoryImpl(db)
-    use_case = GetCompartmentStatusUseCase(locker_repo=locker_repo)
+    compartment_repo = CompartmentRepositoryImpl(db)
+    use_case = GetCompartmentStatusUseCase(locker_repo=locker_repo, compartment_repo=compartment_repo)
 
     dto = use_case.execute(locker_id=locker_id, compartment_id=compartment_id)
 

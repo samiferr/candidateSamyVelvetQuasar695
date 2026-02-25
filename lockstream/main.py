@@ -9,16 +9,16 @@ app = FastAPI()
 
 # Use the contractual schema
 def custom_openapi():
-    with open("lockstream/openapi/openapi.yaml") as f:
+    from lockstream.infrastructure.config import settings
+    with open(settings.openapi_path) as f:
         return yaml.safe_load(f)
 
 
 @app.on_event("startup")
 def _rebuild_projection_on_startup() -> None:
     """
-    On startup:
-      1) ensure in-memory tables exist
-      2) replay append-only JSONL event log into the in-memory DB projection
+    On startup ensure in-memory tables exist and then replay append-only JSONL event log into the in-memory
+    DB projection
     """
     db = SessionLocal()
     try:

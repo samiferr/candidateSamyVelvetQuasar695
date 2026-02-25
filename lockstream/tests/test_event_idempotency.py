@@ -1,12 +1,27 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from uuid import uuid4
 
+import pytest
 from starlette.testclient import TestClient
 
 from lockstream.main import app
 
+
+def _event_log_path() -> Path:
+    from lockstream.tests.config_tests import settings
+    return settings.event_log_path
+
+@pytest.fixture(autouse=True)
+def _clear_event_log_jsonl_before_each_test() -> None:
+    """
+    Ensure tests don't leak events into each other via the append-only JSONL event log.
+    """
+    path = _event_log_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("", encoding="utf-8")
 
 def test_event_idempotency_resending_same_event_id_does_not_change_state() -> None:
     client = TestClient(app)
@@ -35,7 +50,7 @@ def test_event_idempotency_resending_same_event_id_does_not_change_state() -> No
     assert summary_after_first.status_code == 200
     state1 = summary_after_first.json()
 
-    # Re-send same event_id, but mutate payload to prove it must NOT be applied again
+    # Re-send the same event_id, but mutate the payload to check it's NOT applied again
     res2 = client.post(
         "/events",
         json={

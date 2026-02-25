@@ -85,3 +85,5 @@ def get_reservations_reservation_id(reservation_id: str, db: Session = Depends(g
         return get_reservation_status_service(reservation_id, db)
     except ReservationNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+

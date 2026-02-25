@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from lockstream.core.entities.compartment import Compartment
+from lockstream.core.repositories.compartment_repository import CompartmentRepository
 from lockstream.core.repositories.locker_repository import LockerRepository
 
 
@@ -23,15 +24,16 @@ class CompartmentStatusDTO:
 
 
 class GetCompartmentStatusUseCase:
-    def __init__(self, *, locker_repo: LockerRepository) -> None:
+    def __init__(self, *, locker_repo: LockerRepository, compartment_repo: CompartmentRepository) -> None:
         self._locker_repo = locker_repo
+        self._compartment_repo = compartment_repo
 
     def execute(self, *, locker_id: str, compartment_id: str) -> CompartmentStatusDTO:
         locker = self._locker_repo.get(locker_id)
         if locker is None:
             raise NotFoundError("Locker not found")
 
-        compartment: Compartment | None = locker.compartment_index.get(compartment_id)
+        compartment: Compartment | None = self._compartment_repo.get(locker_id, compartment_id)
         if compartment is None:
             raise NotFoundError("Compartment not found")
 
