@@ -37,7 +37,7 @@ class LockerSummary(BaseModel):
 class CompartmentStatus(BaseModel):
     compartment_id: str
     degraded: bool
-    active_reservation: str
+    active_reservation: str | None
 
 
 class Status(Enum):

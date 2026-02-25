@@ -84,6 +84,19 @@ class ReservationModel(Base):
     locker = relationship("LockerModel")
     compartment = relationship("CompartmentModel", back_populates="active_reservation", uselist=False)
 
+
+class FaultModel(Base):
+    __tablename__ = "faults"
+
+    fault_event_id: Mapped[str] = mapped_column(String, primary_key=True)
+    locker_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    compartment_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    severity: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    cleared: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    cleared_by_event_id: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+
+
 class CompartmentModel(Base):
     __tablename__ = "compartments"
 

@@ -4,10 +4,12 @@ from dataclasses import dataclass
 
 from lockstream.core.entities.compartment import Compartment
 from lockstream.core.entities.event import Event, EventType
+from lockstream.core.entities.fault_reported import FaultReported
 from lockstream.core.entities.locker import Locker
 from lockstream.core.entities.reservation import Reservation, ReservationStatus
 from lockstream.core.repositories.compartment_repository import CompartmentRepository
 from lockstream.core.repositories.event_repository import EventRepository
+from lockstream.core.repositories.fault_repository import FaultRepository
 from lockstream.core.repositories.locker_repository import LockerRepository
 from lockstream.core.repositories.reservation_repository import ReservationRepository
 
@@ -32,17 +34,19 @@ class IngestEventUseCase:
     """
 
     def __init__(
-        self,
-        *,
-        event_repo: EventRepository,
-        locker_repo: LockerRepository,
-        reservation_repo: ReservationRepository,
-        compartment_repo: CompartmentRepository,
+            self,
+            *,
+            event_repo: EventRepository,
+            locker_repo: LockerRepository,
+            reservation_repo: ReservationRepository,
+            compartment_repo: CompartmentRepository,
+            fault_repo: FaultRepository,
     ) -> None:
         self._event_repo = event_repo
         self._locker_repo = locker_repo
         self._reservation_repo = reservation_repo
         self._compartment_repo = compartment_repo
+        self._fault_repo = fault_repo
 
         self._handlers: dict[EventType, callable[[Event], None]] = {
             EventType.CompartmentRegistered: self._on_compartment_registered,
@@ -232,31 +236,77 @@ class IngestEventUseCase:
         compartment_id = self._require_str(event.payload, "compartment_id")
         severity = self._require_int(event.payload, "severity")
 
-        compartment = self._compartment_repo.get(event.locker_id, compartment_id) or Compartment(
+        compartment = self._compartment_repo.get(event.locker_id, compartment_id)
+        if compartment is None:
+            raise ValidationError(
+                f"Cannot report fault for unregistered compartment: locker_id={event.locker_id!r}, "
+                f"compartment_id={compartment_id!r}"
+            )
+
+        self._fault_repo.upsert(
+            FaultReported(
+                event_id=str(event.event_id),
+                locker_id=event.locker_id,
+                compartment_id=compartment_id,
+                severity=severity,
+                cleared=False,
+                cleared_by_event_id=None,
+            )
+        )
+
+        # Recompute compartment flags from active faults
+        active_count, any_ge_threshold = self._fault_repo.active_summary(
             locker_id=event.locker_id,
             compartment_id=compartment_id,
         )
 
-        if int(severity) >= 3:
-            compartment.mark_degraded()
+        was_degraded = compartment.degraded
+        compartment.faulty = active_count > 0
+        compartment.degraded = any_ge_threshold
+        self._compartment_repo.upsert(compartment)
 
+        if (not was_degraded) and compartment.degraded:
             locker = self._get_or_create_locker(event.locker_id)
             locker.degraded_compartments += 1
             self._upsert_locker_with_state_hash(locker)
 
-        compartment.mark_faulty()
-        self._compartment_repo.upsert(compartment)
-
     def _on_fault_cleared(self, event: Event) -> None:
         compartment_id = self._require_str(event.payload, "compartment_id")
+        fault_event_id = self._require_str(event.payload, "fault_event_id")
 
         compartment = self._compartment_repo.get(event.locker_id, compartment_id)
-        if compartment is None or not compartment.degraded:
-            return
+        if compartment is None:
+            raise ValidationError(
+                f"Cannot clear fault for unregistered compartment: locker_id={event.locker_id!r}, "
+                f"compartment_id={compartment_id!r}"
+            )
 
-        compartment.clear_degraded()
+        fault = self._fault_repo.get(fault_event_id)
+        if fault is None:
+            raise DomainRuleViolation("Cannot clear fault: referenced fault_event_id does not exist")
+
+        if fault.locker_id != event.locker_id or fault.compartment_id != compartment_id:
+            raise DomainRuleViolation("Cannot clear fault: referenced fault is for a different compartment")
+
+        try:
+            fault.clear(cleared_by_event_id=str(event.event_id))
+        except ValueError as e:
+            raise DomainRuleViolation(str(e)) from e
+
+        self._fault_repo.upsert(fault)
+
+        # Recompute compartment flags from remaining active faults
+        active_count, any_ge_threshold = self._fault_repo.active_summary(
+            locker_id=event.locker_id,
+            compartment_id=compartment_id,
+        )
+
+        was_degraded = compartment.degraded
+        compartment.faulty = active_count > 0
+        compartment.degraded = any_ge_threshold
         self._compartment_repo.upsert(compartment)
 
-        locker = self._get_or_create_locker(event.locker_id)
-        locker.degraded_compartments = max(0, locker.degraded_compartments - 1)
-        self._upsert_locker_with_state_hash(locker)
+        if was_degraded and (not compartment.degraded):
+            locker = self._get_or_create_locker(event.locker_id)
+            locker.degraded_compartments = max(0, locker.degraded_compartments - 1)
+            self._upsert_locker_with_state_hash(locker)

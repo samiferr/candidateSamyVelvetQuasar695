@@ -17,6 +17,7 @@ from lockstream.core.use_cases.ingest_event import IngestEventUseCase
 from lockstream.core.use_cases.rebuild_locker_projection import RebuildLockerProjectionUseCase
 from lockstream.infrastructure.repositories.compartment_repository_impl import CompartmentRepositoryImpl
 from lockstream.infrastructure.repositories.event_repository_jsonl_impl import JsonlEventRepositoryImpl
+from lockstream.infrastructure.repositories.fault_repository_impl import FaultRepositoryImpl
 from lockstream.infrastructure.repositories.locker_repository_impl import LockerRepositoryImpl
 from lockstream.infrastructure.repositories.reservation_repository_impl import ReservationRepositoryImpl
 from lockstream.schemas.models import CompartmentStatus, Event, LockerSummary, ReservationStatus
@@ -118,12 +119,14 @@ def ingest_event_service(body: Event, db: Session) -> dict[str, Any]:
     locker_repo = LockerRepositoryImpl(db)
     reservation_repo = ReservationRepositoryImpl(db)
     compartment_repo = CompartmentRepositoryImpl(db)
+    fault_repo = FaultRepositoryImpl(db)
 
     use_case = IngestEventUseCase(
         event_repo=event_repo,
         locker_repo=locker_repo,
         reservation_repo=reservation_repo,
         compartment_repo=compartment_repo,
+        fault_repo=fault_repo,
     )
 
     result = use_case.execute(_to_core_event(body))
@@ -183,10 +186,10 @@ def rebuild_projection_service(db: Session) -> dict[str, Any]:
     event_log = _JsonlEventLogReader(file_path=event_log_path)
     resetter = _SqlProjectionResetter(db)
 
-
     locker_repo = LockerRepositoryImpl(db)
     reservation_repo = ReservationRepositoryImpl(db)
     compartment_repo = CompartmentRepositoryImpl(db)
+    fault_repo = FaultRepositoryImpl(db)
     event_repo = JsonlEventRepositoryImpl(file_path=event_log_path)
 
     projector = IngestEventUseCase(
@@ -194,6 +197,7 @@ def rebuild_projection_service(db: Session) -> dict[str, Any]:
         locker_repo=locker_repo,
         reservation_repo=reservation_repo,
         compartment_repo=compartment_repo,
+        fault_repo=fault_repo,
     )
 
     use_case = RebuildLockerProjectionUseCase(
