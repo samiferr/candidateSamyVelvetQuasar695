@@ -44,16 +44,24 @@ bash export EVENT_LOG_PATH="event_log.jsonl
 ## 2) How to run tests
 
 ### Run all tests
-
+from the project root:
 ```
-bash pytest -q
+export PYTHONPATH=$PYTHONPATH:.
+pytest
 ```
 
 
 ### Run a single test file
+from the project root:
+
 ```
-bash pytest -q lockstream/tests/test_fault_severity_behavior.py
+export PYTHONPATH=$PYTHONPATH:.
 ```
+then 
+```
+pytest -q lockstream/tests/test_fault_severity_behavior.py
+```
+
 
 
 ### Notes
