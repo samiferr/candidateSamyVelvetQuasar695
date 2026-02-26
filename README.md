@@ -14,6 +14,7 @@ git clone https://github.com/samiferr/candidateSamyVelvetQuasar695
 cd 'candidateSamyVelvetQuasar695'
 python -m venv .venv 
 source .venv/bin/activate 
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 Then run the API with:
