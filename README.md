@@ -10,8 +10,10 @@ An event ingestion + projection API for lo***rs/compartments/reservations (and f
 
 ### Setup
 ```bash
-cd 'path/to/my/project'
-bash python -m venv .venv source .venv/bin/activate 
+git clone https://github.com/samiferr/candidateSamyVelvetQuasar695
+cd 'candidateSamyVelvetQuasar695'
+python -m venv .venv 
+source .venv/bin/activate 
 pip install -r requirements.txt
 ```
 Then run the API with:
